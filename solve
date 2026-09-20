@@ -1,0 +1,7 @@
+#!/usr/bin/env node
+// Binary-style launcher for solve.mjs — lets the solver run as `./solve [--debug] [--cid <id>]`
+// instead of `node solve.mjs [...]`. No extension so it doubles as a plain executable; it has no
+// import/export syntax of its own, so Node loads it as CommonJS regardless of nearby package.json
+// (there is none here, deliberately — the solver stays a standalone, dependency-free file), and
+// CommonJS files can still use dynamic import() to load the real ESM module.
+import("./solution/joined/solve.mjs").then((solver) => solver.main());

@@ -1,0 +1,96 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>GeeTest v4 — isolated test harness</title>
+  <link rel="stylesheet" href="https://static.geetest.com/v4/static/v1.9.7-fc2ddc/css/gcaptcha4.css" />
+  <style>
+    body { font: 14px/1.5 -apple-system, sans-serif; max-width: 640px; margin: 40px auto; padding: 0 16px; }
+    #banner { background: #1b1b1b; color: #eee; padding: 10px 14px; border-radius: 4px; font-size: 13px; margin-bottom: 20px; }
+    #banner code { background: #333; padding: 1px 5px; border-radius: 3px; }
+    label { display: block; margin: 10px 0 4px; font-weight: 600; }
+    input { width: 100%; box-sizing: border-box; padding: 6px 8px; font: 13px monospace; }
+    button { margin-top: 14px; padding: 8px 16px; font-size: 14px; cursor: pointer; }
+    #log { margin-top: 16px; white-space: pre-wrap; word-break: break-all; background: #f4f4f4; padding: 10px; border-radius: 4px; font: 12px/1.4 monospace; min-height: 40px; }
+    #status { font-weight: 600; margin-top: 10px; }
+  </style>
+</head>
+<body>
+  <div id="banner">
+    Isolated GeeTest v4 test page. <code>/load</code> and <code>/verify</code> still hit
+    GeeTest's own real servers (<code>gcaptcha4.geetest.com</code>) unmodified — never. It defines
+    <code>window.initGeetest4</code> and dynamically injects the widget script from
+    wherever <code>staticServers</code> points once <code>/load</code> tells it the path —
+    see sources/NOTES.md for the full trace (<code>window.Geetest4</code> alone is just a
+    bare constructor, not the real entry point; this loader is what calls
+    <code>new Geetest4(...)</code> for you).
+  </div>
+
+  <label for="captchaId">captchaId</label>
+  <input id="captchaId" value="cid" />
+  <div style="font-size:12px;color:#666;margin-top:2px;">
+    Default is the id seen in the real <code>signin_init</code> body (login flow).
+    The other one observed in traffic, <code>b4138512577f72c0d79d35a272272cd8</code>,
+    showed up around the verification/basic screen — swap it in to compare.
+  </div>
+
+  <button id="start">Start captcha</button>
+  <div id="status"></div>
+  <div id="log"></div>
+
+  <script src="sources/gt4-loader.js"></script>
+  <script>
+    const logEl = document.getElementById('log');
+    const statusEl = document.getElementById('status');
+    function log(label, data) {
+      logEl.textContent += `[${new Date().toISOString()}] ${label}\n`
+        + (data !== undefined ? JSON.stringify(data, null, 2) + '\n\n' : '\n');
+    }
+
+    document.getElementById('start').addEventListener('click', () => {
+      const captchaId = document.getElementById('captchaId').value.trim();
+      statusEl.textContent = 'Initializing…';
+      logEl.textContent = '';
+      window.initGeetest4({
+        captchaId,
+        // Real GeeTest API (gcaptcha4.geetest.com) — apiServers default, untouched. protocol
+        // is shared between that and staticServers below (gt4-loader.js's own h()/y() use the
+        // same c.protocol for both), and plain http:// works fine against the real API
+        // (confirmed live — Cloudflare answers 200 without a redirect), so this one setting
+        // covers both without needing https:true (which was only ever a file:// workaround —
+        // see ../serve.js, this page must be opened through that, not as a bare file).
+        protocol: 'http://',
+        // Redirects ONLY the widget bundle + gct4.js fetch (both go through gt4-loader.js's
+        // staticServers) to ../serve.js, which hands back sources/gcaptcha4_rekeyed.js -- the
+        // real, obfuscated gcaptcha4.js with just its RSA modulus swapped (see that file's
+        // header for why NOT the deobfuscated copy). CSS/fonts/icons are resolved by the
+        // widget's own hardcoded absolute URLs and still load from the real CDN, unaffected.
+        staticServers: ['localhost:8788'],
+        product: 'bind',
+        bgColor: '#00000050',
+      }, function (captchaObj) {
+        captchaObj
+          .onReady(function () {
+            statusEl.textContent = 'Ready — showing widget…';
+            log('onReady');
+            captchaObj.showCaptcha();
+          })
+          .onSuccess(function () {
+            const result = captchaObj.getValidate();
+            statusEl.textContent = 'Success — this is the geetest{} object signin_init expects:';
+            log('onSuccess -> getValidate()', result);
+            captchaObj.destroy();
+          })
+          .onFail(function (err) {
+            statusEl.textContent = 'onFail';
+            log('onFail', err);
+          })
+          .onError(function (err) {
+            statusEl.textContent = 'onError';
+            log('onError', err);
+          });
+      });
+    });
+  </script>
+</body>
+</html>
