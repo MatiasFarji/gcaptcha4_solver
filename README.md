@@ -9,7 +9,6 @@ A single standalone script (`solve.mjs`) that solves a GeeTest v4 (`gcaptcha4`) 
 ## Usage
 
 ```bash
-./solve                                          # uses the default captcha_id baked in
 ./solve --cid <captcha_id>                       # solve a specific captcha_id
 ./solve --debug --cid <captcha_id>                # print every step's intermediate values
 
